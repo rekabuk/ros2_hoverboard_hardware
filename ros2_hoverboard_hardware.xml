@@ -1,0 +1,11 @@
+<library path="ros2_hoverboard_hardware">
+
+  <class name="ros2_hoverboard_hardware/HoverboardJoints"
+         type="ros2_hoverboard_hardware::HoverboardJoints"
+         base_class_type="hardware_interface::ActuatorInterface">
+    <description>
+      The ros2_control robot with 2 separate actuators which can be controlled by 2 different endpoints.
+    </description>
+  </class>
+
+</library>
