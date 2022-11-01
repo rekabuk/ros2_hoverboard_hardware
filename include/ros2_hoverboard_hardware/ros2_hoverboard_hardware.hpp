@@ -31,7 +31,8 @@
 #include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/types/hardware_interface_return_values.hpp"
 #include "rclcpp/macros.hpp"
-#include "ros2_hoverboard_hardware/visibility_control.h"
+#include "visibility_control.h"
+#include "protocol.hpp"
 
 
 namespace ros2_hoverboard_hardware
@@ -68,14 +69,29 @@ public:
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
 private:
+  void protocol_recv (uint8_t c); // Function to recontruct serial packets coming from BLDC controller
+  void protocol_txmt(void);
+
   // Parameters for the RRBot simulation
   double hw_start_sec_;
   double hw_stop_sec_;
   double hw_slowdown_;
 
-  // Store the command for the simulated robot
-  double hw_joint_command_;
-  double hw_joint_state_;
+  // Store the commands for the simulated robot
+  //std::vector<double> hw_commands_positions_;
+  std::vector<double> hw_commands_velocities_;
+  //std::vector<double> hw_commands_accelerations_;
+  //std::vector<double> hw_states_positions_;
+  std::vector<double> hw_states_velocities_;
+  //std::vector<double> hw_states_accelerations_;
+
+  int port_fd;
+  unsigned int msg_len = 0;
+  uint8_t prev_byte = 0; // uint8_t is nice to store bytes
+  uint16_t start_frame = 0;
+  uint8_t* p;
+  SerialFeedback msg, prev_msg;
+
 };
 
 }  // namespace ros2_hoverboard_hardware

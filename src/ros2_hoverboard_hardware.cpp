@@ -1,5 +1,3 @@
-// Copyright (c) 2021, Stogl Robotics Consulting UG (haftungsbeschränkt)
-//
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
 // You may obtain a copy of the License at
@@ -13,16 +11,21 @@
 // limitations under the License.
 
 //
-// Authors: Subhas Das, Denis Stogl
+// Author: Andrew Baker (andrew@rekabuk.co.uk)
 //
 
 #include "ros2_hoverboard_hardware/ros2_hoverboard_hardware.hpp"
+#include "ros2_hoverboard_hardware/config.hpp"
 
 #include <chrono>
 #include <cmath>
 #include <limits>
 #include <memory>
 #include <vector>
+
+#include <unistd.h>
+#include <fcntl.h>
+#include <termios.h>
 
 #include "hardware_interface/actuator_interface.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
@@ -39,93 +42,152 @@ hardware_interface::CallbackReturn HoverboardJoints::on_init(
   {
     return hardware_interface::CallbackReturn::ERROR;
   }
+
   // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
   hw_start_sec_ = stod(info_.hardware_parameters["example_param_hw_start_duration_sec"]);
   hw_stop_sec_ = stod(info_.hardware_parameters["example_param_hw_stop_duration_sec"]);
   hw_slowdown_ = stod(info_.hardware_parameters["example_param_hw_slowdown"]);
   // END: This part here is for exemplary purposes - Please do not copy to your production code
 
-  hw_joint_state_ = std::numeric_limits<double>::quiet_NaN();
-  hw_joint_command_ = std::numeric_limits<double>::quiet_NaN();
+//  hw_states_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+  hw_states_velocities_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+//  hw_states_accelerations_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+//  hw_commands_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+  hw_commands_velocities_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+//  hw_commands_accelerations_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+//
+//  control_level_.resize(info_.joints.size(), integration_level_t::POSITION);
 
-  const hardware_interface::ComponentInfo & joint = info_.joints[0];
-  // HoverboardJoints has exactly one state and command interface on each joint
-  if (joint.command_interfaces.size() != 1)
+  for (const hardware_interface::ComponentInfo & joint : info_.joints)
   {
-    RCLCPP_FATAL(
-      rclcpp::get_logger("HoverboardJoints"),
-      "Joint '%s' has %zu command interfaces found. 1 expected.", joint.name.c_str(),
-      joint.command_interfaces.size());
-    return hardware_interface::CallbackReturn::ERROR;
-  }
+    // HoverboardJoints has exactly one state and command interface on each joint
+    if (joint.command_interfaces.size() != 2)
+    {
+      RCLCPP_FATAL(
+        rclcpp::get_logger("HoverboardJoints"),
+        "Joint '%s' has %zu command interfaces found. 2 expected.", joint.name.c_str(),
+        joint.command_interfaces.size());
+      return hardware_interface::CallbackReturn::ERROR;
+    }
 
-  if (joint.command_interfaces[0].name != hardware_interface::HW_IF_POSITION)
-  {
-    RCLCPP_FATAL(
-      rclcpp::get_logger("HoverboardJoints"),
-      "Joint '%s' have %s command interfaces found. '%s' expected.", joint.name.c_str(),
-      joint.command_interfaces[0].name.c_str(), hardware_interface::HW_IF_POSITION);
-    return hardware_interface::CallbackReturn::ERROR;
-  }
+    if (joint.command_interfaces[0].name != hardware_interface::HW_IF_VELOCITY )
+    {
+      RCLCPP_FATAL(
+        rclcpp::get_logger("HoverboardJoints"),
+        "Joint '%s' have %s command interfaces found. '%s' expected.", joint.name.c_str(),
+        joint.command_interfaces[0].name.c_str(), hardware_interface::HW_IF_VELOCITY );
+      return hardware_interface::CallbackReturn::ERROR;
+    }
 
-  if (joint.state_interfaces.size() != 1)
-  {
-    RCLCPP_FATAL(
-      rclcpp::get_logger("HoverboardJoints"), "Joint '%s' has %zu state interface. 1 expected.",
-      joint.name.c_str(), joint.state_interfaces.size());
-    return hardware_interface::CallbackReturn::ERROR;
-  }
+    if (joint.state_interfaces.size() != 2)
+    {
+      RCLCPP_FATAL(
+        rclcpp::get_logger("HoverboardJoints"), "Joint '%s' has %zu state interface. 2 expected.",
+        joint.name.c_str(), joint.state_interfaces.size());
+      return hardware_interface::CallbackReturn::ERROR;
+    }
 
-  if (joint.state_interfaces[0].name != hardware_interface::HW_IF_POSITION)
-  {
-    RCLCPP_FATAL(
-      rclcpp::get_logger("HoverboardJoints"), "Joint '%s' have %s state interface. '%s' expected.",
-      joint.name.c_str(), joint.state_interfaces[0].name.c_str(),
-      hardware_interface::HW_IF_POSITION);
-    return hardware_interface::CallbackReturn::ERROR;
+    if (joint.state_interfaces[0].name != hardware_interface::HW_IF_VELOCITY)
+    {
+      RCLCPP_FATAL(
+        rclcpp::get_logger("HoverboardJoints"), "Joint '%s' have %s state interface. '%s' expected.",
+        joint.name.c_str(), joint.state_interfaces[0].name.c_str(),
+        hardware_interface::HW_IF_POSITION);
+      return hardware_interface::CallbackReturn::ERROR;
+    }
   }
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
+/* ************************************************************************** 
+  ************************************************************************** */
 std::vector<hardware_interface::StateInterface> HoverboardJoints::export_state_interfaces()
 {
   std::vector<hardware_interface::StateInterface> state_interfaces;
-
-  state_interfaces.emplace_back(hardware_interface::StateInterface(
-    info_.joints[0].name, hardware_interface::HW_IF_POSITION, &hw_joint_state_));
+  for (std::size_t i = 0; i < info_.joints.size(); i++)
+  {
+    //state_interfaces.emplace_back(hardware_interface::StateInterface(
+    //  info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_states_positions_[i]));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_states_velocities_[i]));
+    //state_interfaces.emplace_back(hardware_interface::StateInterface(
+    //  info_.joints[i].name, hardware_interface::HW_IF_ACCELERATION, &hw_states_accelerations_[i]));
+  }
 
   return state_interfaces;
 }
 
+/**************************************************************************** 
+ * 
+ ****************************************************************************/
 std::vector<hardware_interface::CommandInterface> HoverboardJoints::export_command_interfaces()
 {
   std::vector<hardware_interface::CommandInterface> command_interfaces;
 
-  command_interfaces.emplace_back(hardware_interface::CommandInterface(
-    info_.joints[0].name, hardware_interface::HW_IF_POSITION, &hw_joint_command_));
-
+   for (std::size_t i = 0; i < info_.joints.size(); i++)
+  {
+    //command_interfaces.emplace_back(hardware_interface::CommandInterface(
+    //  info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_commands_positions_[i]));
+    command_interfaces.emplace_back(hardware_interface::CommandInterface(
+      info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_commands_velocities_[i]));
+    //command_interfaces.emplace_back(hardware_interface::CommandInterface(
+    //  info_.joints[i].name, hardware_interface::HW_IF_ACCELERATION, &hw_commands_accelerations_[i]));
+  }
   return command_interfaces;
 }
 
+/*************************************************************************** 
+ * 
+ ***************************************************************************/
 hardware_interface::CallbackReturn HoverboardJoints::on_activate(
   const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
-  RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Activating ...please wait...");
-
-  for (int i = 0; i < hw_start_sec_; i++)
-  {
-    rclcpp::sleep_for(std::chrono::seconds(1));
-    RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "%.1f seconds left...", hw_start_sec_ - i);
+  if ((port_fd = open(PORT, O_RDWR | O_NOCTTY | O_NDELAY)) < 0) {
+    RCLCPP_ERROR(rclcpp::get_logger("HoverboardJoints"), "Cannot open serial port to hoverboard");
+    exit(-1); // TODO : put this again
   }
-  // END: This part here is for exemplary purposes - Please do not copy to your production code
 
-  // set some default values for joints
-  if (std::isnan(hw_joint_state_))
+  // CONFIGURE THE UART -- connecting to the board
+  // The flags (defined in /usr/include/termios.h - see http://pubs.opengroup.org/onlinepubs/007908799/xsh/termios.h.html):
+  // TODO : understand this shit
+  struct termios options;
+  tcgetattr(port_fd, &options);
+  options.c_cflag = B115200 | CS8 | CLOCAL | CREAD;		//<Set baud rate
+  options.c_iflag = IGNPAR;
+  options.c_oflag = 0;
+  options.c_lflag = 0;
+  tcflush(port_fd, TCIFLUSH);
+  tcsetattr(port_fd, TCSANOW, &options);
+
+  // Set some default values
+  for (std::size_t i = 0; i < hw_states_velocities_.size(); i++)
   {
-    hw_joint_state_ = 0;
-    hw_joint_command_ = 0;
+    // if (std::isnan(hw_states_positions_[i]))
+    // {
+    //   hw_states_positions_[i] = 0;
+    // }
+    if (std::isnan(hw_states_velocities_[i]))
+    {
+      hw_states_velocities_[i] = 0;
+    }
+    // if (std::isnan(hw_states_accelerations_[i]))
+    // {
+    //   hw_states_accelerations_[i] = 0;
+    // }
+    // if (std::isnan(hw_commands_positions_[i]))
+    // {
+    //   hw_commands_positions_[i] = 0;
+    // }
+    if (std::isnan(hw_commands_velocities_[i]))
+    {
+      hw_commands_velocities_[i] = 0;
+    }
+    // if (std::isnan(hw_commands_accelerations_[i]))
+    // {
+    //   hw_commands_accelerations_[i] = 0;
+    // }
+    // control_level_[i] = integration_level_t::UNDEFINED;
   }
 
   RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Successfully activated!");
@@ -133,35 +195,49 @@ hardware_interface::CallbackReturn HoverboardJoints::on_activate(
   return hardware_interface::CallbackReturn::SUCCESS;
 }
 
+/* ************************************************************************** 
+  ************************************************************************** */
 hardware_interface::CallbackReturn HoverboardJoints::on_deactivate(
-  const rclcpp_lifecycle::State & /*previous_state*/)
+    const rclcpp_lifecycle::State & /*previous_state*/)
 {
-  // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
-  RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Deactivating ...please wait...");
+    if (port_fd != -1) 
+        close(port_fd);
 
-  for (int i = 0; i < hw_stop_sec_; i++)
-  {
-    rclcpp::sleep_for(std::chrono::seconds(1));
-    RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "%.1f seconds left...", hw_stop_sec_ - i);
-  }
+    RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Successfully deactivated!");
 
-  RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Successfully deactivated!");
-  // END: This part here is for exemplary purposes - Please do not copy to your production code
-
-  return hardware_interface::CallbackReturn::SUCCESS;
+    return hardware_interface::CallbackReturn::SUCCESS;
 }
 
+/*************************************************************************** 
+ * 
+ ***************************************************************************/
 hardware_interface::return_type HoverboardJoints::read(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
   // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
   RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Reading...");
 
+  if (port_fd != -1) {
+    uint8_t c;
+    int i = 0, r = 0;
+
+    while ((r = ::read(port_fd, &c, 1)) > 0 && i++ < 1024){
+      RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Reading UART");
+      protocol_recv(c);
+    }            
+
+    // if (i > 0)
+    // last_read = ros::Time::now();
+
+    if (r < 0 && errno != EAGAIN)
+    RCLCPP_ERROR(rclcpp::get_logger("HoverboardJoints"), "Reading from serial %s failed: %d", PORT, r);
+  }
+
+
+
   // Simulate RRBot's movement
-  hw_joint_state_ = hw_joint_state_ + (hw_joint_command_ - hw_joint_state_) / hw_slowdown_;
-  RCLCPP_INFO(
-    rclcpp::get_logger("HoverboardJoints"), "Got state %.5f for joint '%s'!", hw_joint_state_,
-    info_.joints[0].name.c_str());
+//  hw_joint_state_ = hw_joint_state_ + (hw_joint_command_ - hw_joint_state_) / hw_slowdown_;
+//  RCLCPP_INFO( rclcpp::get_logger("HoverboardJoints"), "Got state %.5f for joint '%s'!", hw_joint_state_, info_.joints[0].name.c_str());
 
   RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Joints successfully read!");
   // END: This part here is for exemplary purposes - Please do not copy to your production code
@@ -169,24 +245,111 @@ hardware_interface::return_type HoverboardJoints::read(
   return hardware_interface::return_type::OK;
 }
 
-hardware_interface::return_type ros2_hoverboard_hardware::HoverboardJoints::write(
+/*************************************************************************** 
+ * 
+ ***************************************************************************/
+hardware_interface::return_type HoverboardJoints::write(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
   // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
   RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Writing...please wait...");
 
-  // Simulate sending commands to the hardware
-  RCLCPP_INFO(
-    rclcpp::get_logger("HoverboardJoints"), "Got command %.5f for joint '%s'!", hw_joint_command_,
-    info_.joints[0].name.c_str());
+  // Write to the hardware
+  //hw_commands_velocities_[0] hw_commands_velocities_[1]
 
   RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Joints successfully written!");
   // END: This part here is for exemplary purposes - Please do not copy to your production code
 
   return hardware_interface::return_type::OK;
+  }
+
+
+/***************************************************************************
+ *  
+ ***************************************************************************/
+void HoverboardJoints::protocol_recv (uint8_t byte) {
+    start_frame = ((uint16_t)(byte) << 8) | prev_byte;
+    //RCLCPP_INFO(this->get_logger(), "Received a byte: %x",(uint8_t)byte);
+    // if ((uint8_t)byte == 0xAB && (uint8_t)prev_byte == 0xCD){
+    //     RCLCPP_INFO(this->get_logger(), "Received Start frame: %x", start_frame);
+    //     RCLCPP_INFO(this->get_logger(), "Received Start frame: %x %x", (byte) << 8, (uint8_t)prev_byte);
+    // }
+
+    // Read the start frame
+    if (start_frame == START_FRAME) {
+        //RCLCPP_INFO(this->get_logger(), "Start frame recognised");
+        p = (uint8_t*)&msg;
+        *p++ = prev_byte;
+        *p++ = byte;
+        msg_len = 2;
+    } else if (msg_len >= 2 && msg_len < sizeof(SerialFeedback)) {
+        // Otherwise just read the message content until the end
+        *p++ = byte;
+        msg_len++;
+    }
+
+    if (msg_len == sizeof(SerialFeedback)) {
+        uint16_t checksum = (uint16_t)(
+            msg.start ^
+            msg.cmd1 ^
+            msg.cmd2 ^
+            msg.speedR_meas ^
+            msg.speedL_meas ^
+            msg.batVoltage ^
+            msg.boardTemp ^
+            msg.cmdLed);
+
+        if (msg.start == START_FRAME && msg.checksum == checksum) {
+            // std_msgs::msg::Float64 f;
+
+            // f.data = (double)msg.batVoltage/100.0;
+            // voltage_pub_->publish(f);
+
+            // f.data = (double)msg.boardTemp/10.0;
+            // temp_pub_->publish(f);
+
+            // f.data = (double)msg.speedL_meas;
+            // vel_pub_[0]->publish(f);
+            // f.data = (double)msg.speedR_meas;
+            // vel_pub_[1]->publish(f);
+
+            // f.data = (double)msg.cmd1;
+            // cmd_pub_[0]->publish(f);
+            // f.data = (double)msg.cmd2;
+            // cmd_pub_[1]->publish(f);
+        } else {
+            RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Hoverboard checksum mismatch: %d vs %d", msg.checksum, checksum);
+        }
+        msg_len = 0;
+    }
+    prev_byte = byte;
 }
 
-}  // namespace ros2_hoverboard_interface
+/***************************************************************************
+ *  
+ ***************************************************************************/
+void HoverboardJoints::protocol_txmt() {
+    if (port_fd == -1) {
+        RCLCPP_ERROR(rclcpp::get_logger("HoverboardJoints"), "Attempt to write on closed serial");
+        return;
+    }
+    // Calculate steering from difference of left and right //TODO : change this shiiit
+    const double speed = (hw_commands_velocities_[0] + hw_commands_velocities_[1])/2.0;
+    const double steer = (hw_commands_velocities_[0] - hw_commands_velocities_[1])*2.0;
+
+    SerialCommand command;
+    command.start = (uint16_t)START_FRAME;
+    command.steer = (int16_t)steer;
+    command.speed = (int16_t)speed;
+    command.checksum = (uint16_t)(command.start ^ command.steer ^ command.speed);
+
+    int rc = ::write(port_fd, (const void*)&command, sizeof(command));
+    if (rc < 0) {
+        RCLCPP_ERROR(rclcpp::get_logger("HoverboardJoints"), "Error writing to hoverboard serial port");
+    }
+}
+
+}  // namespace ros2_hoverboard_hardware
 
 #include "pluginlib/class_list_macros.hpp"
 
