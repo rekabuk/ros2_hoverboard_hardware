@@ -27,7 +27,7 @@
 #include <fcntl.h>
 #include <termios.h>
 
-#include "hardware_interface/actuator_interface.hpp"
+#include "hardware_interface/system_interface.hpp"
 #include "hardware_interface/types/hardware_interface_type_values.hpp"
 #include "rclcpp/rclcpp.hpp"
 
@@ -36,12 +36,14 @@ namespace ros2_hoverboard_hardware
 hardware_interface::CallbackReturn HoverboardJoints::on_init(
   const hardware_interface::HardwareInfo & info)
 {
-  if (
-    hardware_interface::ActuatorInterface::on_init(info) !=
+ RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB init");
+ if (
+    hardware_interface::SystemInterface::on_init(info) !=
     hardware_interface::CallbackReturn::SUCCESS)
   {
     return hardware_interface::CallbackReturn::ERROR;
   }
+RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB Got past init");
 
   // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
   hw_start_sec_ = stod(info_.hardware_parameters["example_param_hw_start_duration_sec"]);
@@ -49,7 +51,7 @@ hardware_interface::CallbackReturn HoverboardJoints::on_init(
   hw_slowdown_ = stod(info_.hardware_parameters["example_param_hw_slowdown"]);
   // END: This part here is for exemplary purposes - Please do not copy to your production code
 
-//  hw_states_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+  hw_states_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_states_velocities_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
 //  hw_states_accelerations_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
 //  hw_commands_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
@@ -96,6 +98,7 @@ hardware_interface::CallbackReturn HoverboardJoints::on_init(
       return hardware_interface::CallbackReturn::ERROR;
     }
   }
+RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB end of init");
 
   return hardware_interface::CallbackReturn::SUCCESS;
 }
@@ -107,8 +110,8 @@ std::vector<hardware_interface::StateInterface> HoverboardJoints::export_state_i
   std::vector<hardware_interface::StateInterface> state_interfaces;
   for (std::size_t i = 0; i < info_.joints.size(); i++)
   {
-    //state_interfaces.emplace_back(hardware_interface::StateInterface(
-    //  info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_states_positions_[i]));
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_states_positions_[i]));
     state_interfaces.emplace_back(hardware_interface::StateInterface(
       info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_states_velocities_[i]));
     //state_interfaces.emplace_back(hardware_interface::StateInterface(
@@ -354,4 +357,4 @@ void HoverboardJoints::protocol_txmt() {
 #include "pluginlib/class_list_macros.hpp"
 
 PLUGINLIB_EXPORT_CLASS(
-  ros2_hoverboard_hardware::HoverboardJoints, hardware_interface::ActuatorInterface)
+  ros2_hoverboard_hardware::HoverboardJoints, hardware_interface::SystemInterface)

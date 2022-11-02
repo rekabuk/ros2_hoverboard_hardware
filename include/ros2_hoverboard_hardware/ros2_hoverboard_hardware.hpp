@@ -25,7 +25,7 @@
 
 //#include "rclcpp/rclcpp.hpp"
 
-#include "hardware_interface/actuator_interface.hpp"
+//#include "hardware_interface/actuator_interface.hpp"
 #include "hardware_interface/handle.hpp"
 #include "hardware_interface/hardware_info.hpp"
 #include "hardware_interface/system_interface.hpp"
@@ -37,7 +37,7 @@
 
 namespace ros2_hoverboard_hardware
 {
-class HoverboardJoints : public hardware_interface::ActuatorInterface
+class HoverboardJoints : public hardware_interface::SystemInterface
 {
 public:
  RCLCPP_SHARED_PTR_DEFINITIONS(HoverboardJoints)
@@ -81,7 +81,7 @@ private:
   //std::vector<double> hw_commands_positions_;
   std::vector<double> hw_commands_velocities_;
   //std::vector<double> hw_commands_accelerations_;
-  //std::vector<double> hw_states_positions_;
+  std::vector<double> hw_states_positions_;
   std::vector<double> hw_states_velocities_;
   //std::vector<double> hw_states_accelerations_;
 
