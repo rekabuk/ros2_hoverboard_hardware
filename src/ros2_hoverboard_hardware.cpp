@@ -47,9 +47,12 @@ RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB Got past init");
 
   // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
   hw_start_sec_ = stod(info_.hardware_parameters["example_param_hw_start_duration_sec"]);
+RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB -3");
   hw_stop_sec_ = stod(info_.hardware_parameters["example_param_hw_stop_duration_sec"]);
-  hw_slowdown_ = stod(info_.hardware_parameters["example_param_hw_slowdown"]);
+RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB -2");
+  //hw_slowdown_ = stod(info_.hardware_parameters["example_param_hw_slowdown"]);
   // END: This part here is for exemplary purposes - Please do not copy to your production code
+RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB -1");
 
   hw_states_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_states_velocities_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
@@ -59,18 +62,20 @@ RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB Got past init");
 //  hw_commands_accelerations_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
 //
 //  control_level_.resize(info_.joints.size(), integration_level_t::POSITION);
+RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB A");
 
   for (const hardware_interface::ComponentInfo & joint : info_.joints)
   {
     // HoverboardJoints has exactly one state and command interface on each joint
-    if (joint.command_interfaces.size() != 2)
+    if (joint.command_interfaces.size() != 1)
     {
       RCLCPP_FATAL(
         rclcpp::get_logger("HoverboardJoints"),
-        "Joint '%s' has %zu command interfaces found. 2 expected.", joint.name.c_str(),
+        "Joint '%s' has %zu command interfaces found. 1 expected.", joint.name.c_str(),
         joint.command_interfaces.size());
       return hardware_interface::CallbackReturn::ERROR;
     }
+RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB B");
 
     if (joint.command_interfaces[0].name != hardware_interface::HW_IF_VELOCITY )
     {
@@ -80,6 +85,7 @@ RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB Got past init");
         joint.command_interfaces[0].name.c_str(), hardware_interface::HW_IF_VELOCITY );
       return hardware_interface::CallbackReturn::ERROR;
     }
+RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB C");
 
     if (joint.state_interfaces.size() != 2)
     {
@@ -88,6 +94,7 @@ RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB Got past init");
         joint.name.c_str(), joint.state_interfaces.size());
       return hardware_interface::CallbackReturn::ERROR;
     }
+RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB D");
 
     if (joint.state_interfaces[0].name != hardware_interface::HW_IF_VELOCITY)
     {
@@ -97,6 +104,8 @@ RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB Got past init");
         hardware_interface::HW_IF_POSITION);
       return hardware_interface::CallbackReturn::ERROR;
     }
+RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB E");
+
   }
 RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB end of init");
 
