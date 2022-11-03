@@ -61,6 +61,14 @@ public:
     const rclcpp_lifecycle::State & previous_state) override;
 
   ROS2_HOVERBOARD_HARDWARE_PUBLIC
+  hardware_interface::CallbackReturn on_configure(
+    const rclcpp_lifecycle::State & previous_state) override;
+
+  ROS2_HOVERBOARD_HARDWARE_PUBLIC
+  hardware_interface::CallbackReturn on_shutdown(
+    const rclcpp_lifecycle::State & previous_state) override;
+
+  ROS2_HOVERBOARD_HARDWARE_PUBLIC
   hardware_interface::return_type read(
     const rclcpp::Time & time, const rclcpp::Duration & period) override;
 
