@@ -161,6 +161,7 @@ std::vector<hardware_interface::StateInterface> HoverboardJoints::export_state_i
     //state_interfaces.emplace_back(hardware_interface::StateInterface(
     //  info_.joints[i].name, hardware_interface::HW_IF_ACCELERATION, &hw_states_accelerations_[i]));
   }
+  RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Export Vel L: %f R: %f", hw_states_velocities_[0], hw_states_velocities_[1]);
 
   return state_interfaces;
 }
@@ -307,11 +308,10 @@ hardware_interface::return_type HoverboardJoints::read(
 hardware_interface::return_type HoverboardJoints::write(
   const rclcpp::Time & /*time*/, const rclcpp::Duration & /*period*/)
 {
-  // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
-  RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Writing...please wait...");
+  //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Writing...please wait...");
 
   // Write to the hardware
-  //hw_commands_velocities_[0] hw_commands_velocities_[1]
+  protocol_txmt();
 
   RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Joints successfully written!");
   // END: This part here is for exemplary purposes - Please do not copy to your production code
@@ -374,7 +374,7 @@ void HoverboardJoints::protocol_recv (uint8_t byte) {
             // vel_pub_[1]->publish(f);
             hw_states_velocities_[0]= (double)msg.speedL_meas;
             hw_states_velocities_[1]= (double)msg.speedR_meas;
-            RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Vel L: %d R: %d", msg.speedL_meas, msg.speedR_meas);
+            //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Vel L: %d R: %d", msg.speedL_meas, msg.speedR_meas);
 
             hw_states_positions_[0] = 0.0;
             hw_states_positions_[1] = 0.0;
