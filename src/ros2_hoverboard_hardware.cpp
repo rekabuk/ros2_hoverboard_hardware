@@ -377,7 +377,7 @@ void HoverboardJoints::protocol_recv (uint8_t byte) {
             //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Vel L: %d R: %d", msg.speedL_meas, msg.speedR_meas);
 
               // One rotation = 90, convert to radians
-            hw_states_positions_[0] = ((double)(msg.wheelR_cnt)/90.0)*2.0*M_PI;
+            hw_states_positions_[0] = ((double)(msg.wheelL_cnt)/90.0)*2.0*M_PI;
             hw_states_positions_[1] = ((double)(msg.wheelR_cnt)/90.0)*2.0*M_PI;
 
             // f.data = (double)msg.cmd1;
