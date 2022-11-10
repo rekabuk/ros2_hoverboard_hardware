@@ -161,7 +161,7 @@ std::vector<hardware_interface::StateInterface> HoverboardJoints::export_state_i
     //state_interfaces.emplace_back(hardware_interface::StateInterface(
     //  info_.joints[i].name, hardware_interface::HW_IF_ACCELERATION, &hw_states_accelerations_[i]));
   }
-  RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Export Vel L: %f R: %f", hw_states_velocities_[0], hw_states_velocities_[1]);
+  //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Export Vel L: %f R: %f", hw_states_velocities_[0], hw_states_velocities_[1]);
 
   return state_interfaces;
 }
@@ -288,14 +288,7 @@ hardware_interface::return_type HoverboardJoints::read(
       RCLCPP_ERROR(rclcpp::get_logger("HoverboardJoints"), "Reading from serial %s failed: %d", PORT, r);
   }
 
-
-
-  // Simulate RRBot's movement
-//  hw_joint_state_ = hw_joint_state_ + (hw_joint_command_ - hw_joint_state_) / hw_slowdown_;
-//  RCLCPP_INFO( rclcpp::get_logger("HoverboardJoints"), "Got state %.5f for joint '%s'!", hw_joint_state_, info_.joints[0].name.c_str());
-
-  RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Joints successfully read!");
-  // END: This part here is for exemplary purposes - Please do not copy to your production code
+  // RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Joints successfully read!");
 
   return hardware_interface::return_type::OK;
 }
@@ -313,8 +306,7 @@ hardware_interface::return_type HoverboardJoints::write(
   // Write to the hardware
   protocol_txmt();
 
-  RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Joints successfully written!");
-  // END: This part here is for exemplary purposes - Please do not copy to your production code
+  // RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Joints successfully written!");
 
   return hardware_interface::return_type::OK;
   }
