@@ -397,8 +397,8 @@ void HoverboardJoints::protocol_txmt() {
     // Calculate steering from difference of left and right //TODO : change this shiiit
     //const double speed = (hw_commands_velocities_[0] + hw_commands_velocities_[1])/2.0;
     //const double steer = (hw_commands_velocities_[0] - hw_commands_velocities_[1])*2.0;
-    const double speed = hw_commands_velocities_[0];
-    const double steer = hw_commands_velocities_[1];
+    const double speed = hw_commands_velocities_[0] * 8.0;
+    const double steer = hw_commands_velocities_[1] * 8.0;
 
     SerialCommand command;
     command.start = (uint16_t)START_FRAME;
