@@ -85,6 +85,12 @@ private:
   double hw_stop_sec_;
   double hw_slowdown_;
 
+  //Port to connect too
+  std::string port = "";
+ 
+  // Sensor states, 0=temp 1=Battert
+  std::vector<double> hw_sensor_states_;
+
   // Store the commands for the simulated robot
   //std::vector<double> hw_commands_positions_;
   std::vector<double> hw_commands_velocities_;

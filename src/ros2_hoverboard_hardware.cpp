@@ -48,16 +48,28 @@ RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB Got past init");
   // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
   hw_start_sec_ = stod(info_.hardware_parameters["example_param_hw_start_duration_sec"]);
   hw_stop_sec_ = stod(info_.hardware_parameters["example_param_hw_stop_duration_sec"]);
-  // END: This part here is for exemplary purposes - Please do not copy to your production code
+  hw_slowdown_ = stod(info_.hardware_parameters["example_param_hw_slowdown"]);
+ // END: This part here is for exemplary purposes - Please do not copy to your production code
+
+  port = info_.hardware_parameters["hoverboard_port"];
 
   hw_states_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_states_velocities_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
-//  hw_states_accelerations_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
-//  hw_commands_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_commands_velocities_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
-//  hw_commands_accelerations_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
-//
-//  control_level_.resize(info_.joints.size(), integration_level_t::POSITION);
+  hw_sensor_states_.resize( info_.sensors.size(), std::numeric_limits<double>::quiet_NaN());
+ 
+ for (const hardware_interface::ComponentInfo & sensors : info_.sensors)
+  {
+    // HoverboardJoints has exactly one state and command interface on each joint
+    if (sensors.state_interfaces.size() != 2)
+    {
+      RCLCPP_FATAL(
+        rclcpp::get_logger("HoverboardSensors"),
+        "Sensors '%s' has %zu state interfaces found. 1 expected.", sensors.name.c_str(),
+        sensors.state_interfaces.size());
+      return hardware_interface::CallbackReturn::ERROR;
+    }
+  }
 
   for (const hardware_interface::ComponentInfo & joint : info_.joints)
   {
@@ -114,7 +126,7 @@ hardware_interface::CallbackReturn HoverboardJoints::on_configure(
 {
   //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "on_configure");
 
-  if ((port_fd = open(PORT, O_RDWR | O_NOCTTY | O_NDELAY)) < 0) {
+  if ((port_fd = open(port.c_str(), O_RDWR | O_NOCTTY | O_NDELAY)) < 0) {
     RCLCPP_ERROR(rclcpp::get_logger("HoverboardJoints"), "Cannot open serial port to hoverboard");
     return hardware_interface::CallbackReturn::ERROR;
   }
@@ -281,11 +293,8 @@ hardware_interface::return_type HoverboardJoints::read(
       protocol_recv(c);
     }            
 
-    // if (i > 0)
-    // last_read = ros::Time::now();
-
     if (r < 0 && errno != EAGAIN)
-      RCLCPP_ERROR(rclcpp::get_logger("HoverboardJoints"), "Reading from serial %s failed: %d", PORT, r);
+      RCLCPP_ERROR(rclcpp::get_logger("HoverboardJoints"), "Reading from serial %s failed: %d", port.c_str(), r);
   }
 
   // RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Joints successfully read!");
@@ -355,15 +364,13 @@ void HoverboardJoints::protocol_recv (uint8_t byte) {
             // std_msgs::msg::Float64 f;
 
             // f.data = (double)msg.batVoltage/100.0;
-            // voltage_pub_->publish(f);
+            hw_sensor_states_[0]=(double)msg.batVoltage/100.0;
 
             // f.data = (double)msg.boardTemp/10.0;
-            // temp_pub_->publish(f);
+            hw_sensor_states_[1]=(double)msg.boardTemp/10.0;
 
             // f.data = (double)msg.speedL_meas;
-            // vel_pub_[0]->publish(f);
             // f.data = (double)msg.speedR_meas;
-            // vel_pub_[1]->publish(f);
             hw_states_velocities_[0]= (double)msg.speedL_meas;
             hw_states_velocities_[1]= (double)msg.speedR_meas;
             //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Vel L: %d R: %d", msg.speedL_meas, msg.speedR_meas);
@@ -376,6 +383,7 @@ void HoverboardJoints::protocol_recv (uint8_t byte) {
             // cmd_pub_[0]->publish(f);
             // f.data = (double)msg.cmd2;
             // cmd_pub_[1]->publish(f);
+
         } else {
             RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Hoverboard checksum mismatch: %d vs %d", msg.checksum, checksum);
         }
