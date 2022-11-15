@@ -47,12 +47,9 @@ RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB Got past init");
 
   hw_start_sec_ = stod(info_.hardware_parameters["example_param_hw_start_duration_sec"]);
   hw_stop_sec_ = stod(info_.hardware_parameters["example_param_hw_stop_duration_sec"]);
-RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"0");
   hw_slowdown_ = stod(info_.hardware_parameters["example_param_hw_slowdown"]);
-RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"1");
   port = info_.hardware_parameters["hoverboard_port"];
-  //port = "/dev/ttyUSB1";
-RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"2 <%s>", port.c_str());
+  RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"port <%s>", port.c_str());
 
   hw_states_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_states_velocities_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
@@ -62,7 +59,7 @@ RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"2 <%s>", port.c_str());
  for (const hardware_interface::ComponentInfo & sensors : info_.sensors)
   {
     // HoverboardJoints has exactly one state and command interface on each joint
-    if (sensors.state_interfaces.size() != 2)
+    if (sensors.state_interfaces.size() != 1)
     {
       RCLCPP_FATAL(
         rclcpp::get_logger("HoverboardSensors"),
@@ -175,6 +172,13 @@ std::vector<hardware_interface::StateInterface> HoverboardJoints::export_state_i
     //  info_.joints[i].name, hardware_interface::HW_IF_ACCELERATION, &hw_states_accelerations_[i]));
   }
   //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Export Vel L: %f R: %f", hw_states_velocities_[0], hw_states_velocities_[1]);
+
+
+  for (std::size_t i = 0; i < info_.sensors.size(); i++)
+  {
+    state_interfaces.emplace_back(hardware_interface::StateInterface(
+      info_.sensors[i].name, info_.sensors[i].state_interfaces[0].name, &hw_sensor_states_[i]));
+  }
 
   return state_interfaces;
 }
