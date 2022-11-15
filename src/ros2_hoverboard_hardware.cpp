@@ -45,13 +45,14 @@ hardware_interface::CallbackReturn HoverboardJoints::on_init(
   }
 RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB Got past init");
 
-  // BEGIN: This part here is for exemplary purposes - Please do not copy to your production code
   hw_start_sec_ = stod(info_.hardware_parameters["example_param_hw_start_duration_sec"]);
   hw_stop_sec_ = stod(info_.hardware_parameters["example_param_hw_stop_duration_sec"]);
+RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"0");
   hw_slowdown_ = stod(info_.hardware_parameters["example_param_hw_slowdown"]);
- // END: This part here is for exemplary purposes - Please do not copy to your production code
-
+RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"1");
   port = info_.hardware_parameters["hoverboard_port"];
+  //port = "/dev/ttyUSB1";
+RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"2 <%s>", port.c_str());
 
   hw_states_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_states_velocities_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
@@ -127,7 +128,7 @@ hardware_interface::CallbackReturn HoverboardJoints::on_configure(
   //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "on_configure");
 
   if ((port_fd = open(port.c_str(), O_RDWR | O_NOCTTY | O_NDELAY)) < 0) {
-    RCLCPP_ERROR(rclcpp::get_logger("HoverboardJoints"), "Cannot open serial port to hoverboard");
+    RCLCPP_ERROR(rclcpp::get_logger("HoverboardJoints"), "Cannot open serial port to hoverboard %s", port.c_str());
     return hardware_interface::CallbackReturn::ERROR;
   }
     
