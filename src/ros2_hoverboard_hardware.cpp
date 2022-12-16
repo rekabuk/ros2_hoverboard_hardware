@@ -52,13 +52,13 @@ RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB Got past init");
   RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"port <%s>", port.c_str());
 
   hw_states_positions_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
-  hw_states_velocities_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
+  //hw_states_velocities_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_commands_velocities_.resize(info_.joints.size(), std::numeric_limits<double>::quiet_NaN());
   hw_sensor_states_.resize( info_.sensors.size(), std::numeric_limits<double>::quiet_NaN());
  
  for (const hardware_interface::ComponentInfo & sensors : info_.sensors)
   {
-    // HoverboardJoints has exactly one state and command interface on each joint
+    // HoverboardJoints has state interface per sensor
     if (sensors.state_interfaces.size() != 1)
     {
       RCLCPP_FATAL(
@@ -90,7 +90,7 @@ RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB Got past init");
       return hardware_interface::CallbackReturn::ERROR;
     }
 
-    if (joint.state_interfaces.size() != 2)
+    if (joint.state_interfaces.size() != 1)
     {
       RCLCPP_FATAL(
         rclcpp::get_logger("HoverboardJoints"), "Joint '%s' has %zu state interface. 2 expected.",
@@ -98,7 +98,7 @@ RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB Got past init");
       return hardware_interface::CallbackReturn::ERROR;
     }
 
-    if (joint.state_interfaces[0].name != hardware_interface::HW_IF_VELOCITY)
+    if (joint.state_interfaces[0].name != hardware_interface::HW_IF_POSITION)
     {
       RCLCPP_FATAL(
         rclcpp::get_logger("HoverboardJoints"), "Joint '%s' have %s state interface. '%s' expected.",
@@ -166,8 +166,8 @@ std::vector<hardware_interface::StateInterface> HoverboardJoints::export_state_i
   {
     state_interfaces.emplace_back(hardware_interface::StateInterface(
       info_.joints[i].name, hardware_interface::HW_IF_POSITION, &hw_states_positions_[i]));
-    state_interfaces.emplace_back(hardware_interface::StateInterface(
-      info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_states_velocities_[i]));
+    //state_interfaces.emplace_back(hardware_interface::StateInterface(
+    //  info_.joints[i].name, hardware_interface::HW_IF_VELOCITY, &hw_states_velocities_[i]));
     //state_interfaces.emplace_back(hardware_interface::StateInterface(
     //  info_.joints[i].name, hardware_interface::HW_IF_ACCELERATION, &hw_states_accelerations_[i]));
   }
@@ -232,14 +232,18 @@ hardware_interface::CallbackReturn HoverboardJoints::on_activate(
     {
       hw_states_positions_[i] = 0;
     }
-    if (std::isnan(hw_states_velocities_[i]))
-    {
-      hw_states_velocities_[i] = 0;
-    }
+    //if (std::isnan(hw_states_velocities_[i]))
+    //{
+    //  hw_states_velocities_[i] = 0;
+    //}
     // if (std::isnan(hw_states_accelerations_[i]))
     // {
     //   hw_states_accelerations_[i] = 0;
     // }
+  }
+
+  for (std::size_t i = 0; i < hw_commands_velocities_.size(); i++)
+  {
 
     //if (std::isnan(hw_commands_positions_[i]))
     //{
@@ -376,8 +380,8 @@ void HoverboardJoints::protocol_recv (uint8_t byte) {
 
             // f.data = (double)msg.speedL_meas;
             // f.data = (double)msg.speedR_meas;
-            hw_states_velocities_[0]= (double)msg.speedL_meas;
-            hw_states_velocities_[1]= (double)msg.speedR_meas;
+            //hw_states_velocities_[0]= (double)msg.speedL_meas;
+            //hw_states_velocities_[1]= (double)msg.speedR_meas;
             //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Vel L: %d R: %d", msg.speedL_meas, msg.speedR_meas);
 
               // One rotation = 90, convert to radians
