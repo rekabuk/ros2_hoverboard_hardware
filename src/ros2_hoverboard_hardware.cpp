@@ -33,6 +33,7 @@
 
 namespace ros2_hoverboard_hardware
 {
+
 hardware_interface::CallbackReturn HoverboardJoints::on_init(
   const hardware_interface::HardwareInfo & info)
 {
@@ -44,6 +45,11 @@ hardware_interface::CallbackReturn HoverboardJoints::on_init(
     return hardware_interface::CallbackReturn::ERROR;
   }
 RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB Got past init");
+
+  low_wrap = ENCODER_LOW_WRAP_FACTOR*(ENCODER_MAX - ENCODER_MIN) + ENCODER_MIN;
+  high_wrap = ENCODER_HIGH_WRAP_FACTOR*(ENCODER_MAX - ENCODER_MIN) + ENCODER_MIN;
+  last_wheelcountR = last_wheelcountL = 0;
+  multR = multL = 0;
 
   hw_start_sec_ = stod(info_.hardware_parameters["example_param_hw_start_duration_sec"]);
   hw_stop_sec_ = stod(info_.hardware_parameters["example_param_hw_stop_duration_sec"]);
@@ -302,6 +308,9 @@ hardware_interface::return_type HoverboardJoints::read(
       protocol_recv(c);
     }            
 
+    if (i > 0)
+      last_read = rclcpp::Clock{}.now().seconds();
+
     if (r < 0 && errno != EAGAIN)
       RCLCPP_ERROR(rclcpp::get_logger("HoverboardJoints"), "Reading from serial %s failed: %d", port.c_str(), r);
   }
@@ -378,21 +387,17 @@ void HoverboardJoints::protocol_recv (uint8_t byte) {
             // f.data = (double)msg.boardTemp/10.0;
             hw_sensor_states_[1]=(double)msg.boardTemp/10.0;
 
-            // f.data = (double)msg.speedL_meas;
-            // f.data = (double)msg.speedR_meas;
-            //hw_states_velocities_[0]= (double)msg.speedL_meas;
-            //hw_states_velocities_[1]= (double)msg.speedR_meas;
+            // Convert RPM to RAD/S
+            hw_states_velocities_[0]= (double)msg.speedL_meas* 0.10472;
+            hw_states_velocities_[1]= (double)msg.speedR_meas* 0.10472;
             //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Vel L: %d R: %d", msg.speedL_meas, msg.speedR_meas);
 
               // One rotation = 90, convert to radians
-            hw_states_positions_[0] = ((double)(msg.wheelL_cnt)/90.0)*2.0*M_PI;
-            hw_states_positions_[1] = ((double)(msg.wheelR_cnt)/90.0)*2.0*M_PI;
+            //hw_states_positions_[0] = ((double)(msg.wheelL_cnt)/90.0)*2.0*M_PI;
+            //hw_states_positions_[1] = ((double)(msg.wheelR_cnt)/90.0)*2.0*M_PI;
 
-            // f.data = (double)msg.cmd1;
-            // cmd_pub_[0]->publish(f);
-            // f.data = (double)msg.cmd2;
-            // cmd_pub_[1]->publish(f);
-
+            // Process encoder values and update odometry
+            on_encoder_update (msg.wheelR_cnt, msg.wheelL_cnt);
         } else {
             RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Hoverboard checksum mismatch: %d vs %d", msg.checksum, checksum);
         }
@@ -427,6 +432,59 @@ void HoverboardJoints::protocol_txmt() {
     if (rc < 0) {
         RCLCPP_ERROR(rclcpp::get_logger("HoverboardJoints"), "Error writing to hoverboard serial port");
     }
+}
+
+void HoverboardJoints::on_encoder_update (int16_t right, int16_t left) {
+    double posL = 0.0, posR = 0.0;
+
+    // Calculate wheel position in ticks, factoring in encoder wraps
+    if (right < low_wrap && last_wheelcountR > high_wrap)
+        multR++;
+    else if (right > high_wrap && last_wheelcountR < low_wrap)
+        multR--;
+    posR = right + multR*(ENCODER_MAX-ENCODER_MIN);
+    last_wheelcountR = right;
+
+    if (left < low_wrap && last_wheelcountL > high_wrap)
+        multL++;
+    else if (left > high_wrap && last_wheelcountL < low_wrap)
+        multL--;
+    posL = left + multL*(ENCODER_MAX-ENCODER_MIN);
+    last_wheelcountL = left;
+
+    // When the board shuts down and restarts, wheel ticks are reset to zero so the robot can be suddently lost
+    // This section accumulates ticks even if board shuts down and is restarted   
+    static double lastPosL = 0.0, lastPosR = 0.0;
+    static double lastPubPosL = 0.0, lastPubPosR = 0.0;
+    static bool nodeStartFlag = true;
+    
+    //IF there has been a pause in receiving data AND the new number of ticks is close to zero, indicates a board restard
+    //(the board seems to often report 1-3 ticks on startup instead of zero)
+    //reset the last read ticks to the startup values
+    if ( ((rclcpp::Clock{}.now().seconds() - last_read) > 0.2) && (abs(posL) < 5) && (abs(posR) < 5)) {
+            lastPosL = posL;
+            lastPosR = posR;
+	  }
+    double posLDiff = 0;
+    double posRDiff = 0;
+
+    //if node is just starting keep odom at zeros
+	if(nodeStartFlag){
+		nodeStartFlag = false;
+	}else{
+            posLDiff = posL - lastPosL;
+            posRDiff = posR - lastPosR;
+	}
+
+    lastPubPosL += posLDiff;
+    lastPubPosR += posRDiff;
+    lastPosL = posL;
+    lastPosR = posR;
+    
+    // Convert position in accumulated ticks to position in radians
+    hw_states_positions_[0] = 2.0 * M_PI * lastPubPosL/(double)TICKS_PER_ROTATION;
+    hw_states_positions_[1] = 2.0 * M_PI * lastPubPosR/(double)TICKS_PER_ROTATION;
+
 }
 
 }  // namespace ros2_hoverboard_hardware

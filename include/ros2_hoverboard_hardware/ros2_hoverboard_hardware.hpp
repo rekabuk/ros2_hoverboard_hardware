@@ -79,6 +79,7 @@ public:
 private:
   void protocol_recv (uint8_t c); // Function to recontruct serial packets coming from BLDC controller
   void protocol_txmt(void);
+  void on_encoder_update (int16_t right, int16_t left);
 
   // Parameters for the RRBot simulation
   double hw_start_sec_;
@@ -106,6 +107,16 @@ private:
   uint8_t* p;
   SerialFeedback msg, prev_msg;
 
+  int16_t last_wheelcountR;
+  int16_t last_wheelcountL;
+  // Count of full encoder wraps
+  int multR;
+  int multL;
+  // Thresholds for calculating the wrap
+  int low_wrap;
+  int high_wrap;
+
+  double last_read;
 };
 
 }  // namespace ros2_hoverboard_hardware
