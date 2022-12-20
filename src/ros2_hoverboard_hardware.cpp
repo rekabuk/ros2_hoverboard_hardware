@@ -395,7 +395,7 @@ void HoverboardJoints::protocol_recv (uint8_t byte) {
               // One rotation = 90, convert to radians
             //hw_states_positions_[0] = ((double)(msg.wheelL_cnt)/90.0)*2.0*M_PI;
             //hw_states_positions_[1] = ((double)(msg.wheelR_cnt)/90.0)*2.0*M_PI;
-
+            
             // Process encoder values and update odometry
             on_encoder_update (msg.wheelR_cnt, msg.wheelL_cnt);
         } else {
