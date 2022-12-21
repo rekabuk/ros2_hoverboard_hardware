@@ -312,10 +312,8 @@ hardware_interface::return_type HoverboardJoints::read(
     if (r < 0 && errno != EAGAIN)
       RCLCPP_ERROR(rclcpp::get_logger("HoverboardJoints"), "Reading from serial %s failed: %d", port.c_str(), r);
 
-    RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "read - Check time");
     if (i > 0)
       last_read = rclcpp::Clock{}.now().seconds();
-    RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "read - last_read=%0.3f", last_read);
 
   }
 
@@ -358,7 +356,7 @@ void HoverboardJoints::protocol_recv (uint8_t byte) {
 
     // Read the start frame
     if (start_frame == START_FRAME) {
-        RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Start frame recognised");
+        //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Start frame recognised");
         p = (uint8_t*)&msg;
         *p++ = prev_byte;
         *p++ = byte;
@@ -370,7 +368,7 @@ void HoverboardJoints::protocol_recv (uint8_t byte) {
     }
 
     if (msg_len == sizeof(SerialFeedback)) {
-        RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Got msg from hb");
+        //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Got msg from hb");
 
         uint16_t checksum = (uint16_t)(
         msg.start ^
@@ -395,13 +393,13 @@ void HoverboardJoints::protocol_recv (uint8_t byte) {
 
           // Convert RPM to RAD/S
           hw_states_velocities_[0]= (double)msg.speedL_meas * 0.10472;
-          hw_states_velocities_[1]= (double)msg.speedR_meas * 0.10472;
-          RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Vel L: %d R: %d", msg.speedL_meas, msg.speedR_meas);
-          RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Vel L: %0.3f R: %0.3f", hw_states_velocities_[0], hw_states_velocities_[1]);
+          hw_states_velocities_[1]= (double)msg.speedR_meas * -0.10472;
+          //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Vel L: %d R: %d", msg.speedL_meas, msg.speedR_meas);
 
           // Process encoder values and update odometry
           on_encoder_update(msg.wheelR_cnt, msg.wheelL_cnt);
-          RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Pos L: %0.3f R: %0.3f", hw_states_positions_[0], hw_states_positions_[1]);
+          //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Pos L: %0.3f R: %0.3f", hw_states_positions_[0], hw_states_positions_[1]);
+          //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Vel L: %0.3f R: %0.3f", hw_states_velocities_[0], hw_states_velocities_[1]);
         } else {
             RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Hoverboard checksum mismatch: %d vs %d", msg.checksum, checksum);
         }
