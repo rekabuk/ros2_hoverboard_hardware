@@ -50,7 +50,8 @@ RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"),"ACB Got past init");
   high_wrap = ENCODER_HIGH_WRAP_FACTOR*(ENCODER_MAX - ENCODER_MIN) + ENCODER_MIN;
   last_wheelcountR = last_wheelcountL = 0;
   multR = multL = 0;
-
+  last_read=0.0;
+  
   hw_start_sec_ = stod(info_.hardware_parameters["example_param_hw_start_duration_sec"]);
   hw_stop_sec_ = stod(info_.hardware_parameters["example_param_hw_stop_duration_sec"]);
   hw_slowdown_ = stod(info_.hardware_parameters["example_param_hw_slowdown"]);
@@ -304,15 +305,18 @@ hardware_interface::return_type HoverboardJoints::read(
     int i = 0, r = 0;
 
     while ((r = ::read(port_fd, &c, 1)) > 0 && i++ < 1024){
-      //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Reading UART");
+      RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Reading UART");
       protocol_recv(c);
     }            
 
-    if (i > 0)
-      last_read = rclcpp::Clock{}.now().seconds();
-
     if (r < 0 && errno != EAGAIN)
       RCLCPP_ERROR(rclcpp::get_logger("HoverboardJoints"), "Reading from serial %s failed: %d", port.c_str(), r);
+
+    RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "read - Check time");
+    if (i > 0)
+      last_read = rclcpp::Clock{}.now().seconds();
+    RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "read - last_read=%0.3f", last_read);
+
   }
 
   // RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Joints successfully read!");
@@ -354,7 +358,7 @@ void HoverboardJoints::protocol_recv (uint8_t byte) {
 
     // Read the start frame
     if (start_frame == START_FRAME) {
-        //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Start frame recognised");
+        RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Start frame recognised");
         p = (uint8_t*)&msg;
         *p++ = prev_byte;
         *p++ = byte;
@@ -366,38 +370,38 @@ void HoverboardJoints::protocol_recv (uint8_t byte) {
     }
 
     if (msg_len == sizeof(SerialFeedback)) {
+        RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Got msg from hb");
+
         uint16_t checksum = (uint16_t)(
-            msg.start ^
-            msg.cmd1 ^
-            msg.cmd2 ^
-            msg.speedR_meas ^
-            msg.speedL_meas ^
-            msg.wheelR_cnt ^
-            msg.wheelL_cnt ^
-            msg.batVoltage ^
-            msg.boardTemp ^
-            msg.cmdLed);
+        msg.start ^
+        msg.cmd1 ^
+        msg.cmd2 ^
+        msg.speedR_meas ^
+        msg.speedL_meas ^
+        msg.wheelR_cnt ^
+        msg.wheelL_cnt ^
+        msg.batVoltage ^
+        msg.boardTemp ^
+        msg.cmdLed);
               
-            if (msg.start == START_FRAME && msg.checksum == checksum) {
-            // std_msgs::msg::Float64 f;
+        if (msg.start == START_FRAME && msg.checksum == checksum) {
+          // std_msgs::msg::Float64 f;
 
-            // f.data = (double)msg.batVoltage/100.0;
-            hw_sensor_states_[0]=(double)msg.batVoltage/100.0;
+          // f.data = (double)msg.batVoltage/100.0;
+          hw_sensor_states_[0]=(double)msg.batVoltage/100.0;
 
-            // f.data = (double)msg.boardTemp/10.0;
-            hw_sensor_states_[1]=(double)msg.boardTemp/10.0;
+          // f.data = (double)msg.boardTemp/10.0;
+          hw_sensor_states_[1]=(double)msg.boardTemp/10.0;
 
-            // Convert RPM to RAD/S
-            hw_states_velocities_[0]= (double)msg.speedL_meas* 0.10472;
-            hw_states_velocities_[1]= (double)msg.speedR_meas* 0.10472;
-            //RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Vel L: %d R: %d", msg.speedL_meas, msg.speedR_meas);
+        RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Write velocities");
+          // Convert RPM to RAD/S
+    //      hw_states_velocities_[0]= (double)msg.speedL_meas ; //* 0.10472;
+     //     hw_states_velocities_[1]= (double)msg.speedR_meas ; //* 0.10472;
+          RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Vel L: %d R: %d", msg.speedL_meas, msg.speedR_meas);
 
-              // One rotation = 90, convert to radians
-            //hw_states_positions_[0] = ((double)(msg.wheelL_cnt)/90.0)*2.0*M_PI;
-            //hw_states_positions_[1] = ((double)(msg.wheelR_cnt)/90.0)*2.0*M_PI;
-            
-            // Process encoder values and update odometry
-            on_encoder_update (msg.wheelR_cnt, msg.wheelL_cnt);
+          // Process encoder values and update odometry
+          //on_encoder_update(msg.wheelR_cnt, msg.wheelL_cnt);
+          RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Pos L: %0.3f R: %0.3f", hw_states_positions_[0], hw_states_positions_[1]);
         } else {
             RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Hoverboard checksum mismatch: %d vs %d", msg.checksum, checksum);
         }
@@ -434,7 +438,8 @@ void HoverboardJoints::protocol_txmt() {
     }
 }
 
-void HoverboardJoints::on_encoder_update (int16_t right, int16_t left) {
+void HoverboardJoints::on_encoder_update (int16_t right, int16_t left) 
+{
     double posL = 0.0, posR = 0.0;
 
     // Calculate wheel position in ticks, factoring in encoder wraps
@@ -461,20 +466,25 @@ void HoverboardJoints::on_encoder_update (int16_t right, int16_t left) {
     //IF there has been a pause in receiving data AND the new number of ticks is close to zero, indicates a board restard
     //(the board seems to often report 1-3 ticks on startup instead of zero)
     //reset the last read ticks to the startup values
-    if ( ((rclcpp::Clock{}.now().seconds() - last_read) > 0.2) && (abs(posL) < 5) && (abs(posR) < 5)) {
-            lastPosL = posL;
-            lastPosR = posR;
+    if ( ((rclcpp::Clock{}.now().seconds() - last_read) > 0.2) && (abs(posL) < 5) && (abs(posR) < 5)) 
+    {
+        lastPosL = posL;
+        lastPosR = posR;
 	  }
+
     double posLDiff = 0;
     double posRDiff = 0;
 
-    //if node is just starting keep odom at zeros
-	if(nodeStartFlag){
-		nodeStartFlag = false;
-	}else{
-            posLDiff = posL - lastPosL;
-            posRDiff = posR - lastPosR;
-	}
+      //if node is just starting keep odom at zeros
+    if (nodeStartFlag)
+    {
+        nodeStartFlag = false;
+    }
+    else
+    {
+        posLDiff = posL - lastPosL;
+        posRDiff = posR - lastPosR;
+    }
 
     lastPubPosL += posLDiff;
     lastPubPosR += posRDiff;
