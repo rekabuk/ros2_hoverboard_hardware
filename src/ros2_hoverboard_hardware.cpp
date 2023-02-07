@@ -310,11 +310,24 @@ hardware_interface::return_type HoverboardJoints::read(
     }            
 
     if (r < 0 && errno != EAGAIN)
+    {
       RCLCPP_ERROR(rclcpp::get_logger("HoverboardJoints"), "Reading from serial %s failed: %d", port.c_str(), r);
+    }
+
+    // If nothing heard for a long time then assume controller has shut down
+    if ((rclcpp::Clock{}.now().seconds() - last_read) > 1.0)
+    {
+      hw_sensor_states_[2] = 0.0;
+    }
+    else
+    {
+      hw_sensor_states_[2] = 1.0;
+    }
 
     if (i > 0)
+    {
       last_read = rclcpp::Clock{}.now().seconds();
-
+    }
   }
 
   // RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Joints successfully read!");
@@ -338,7 +351,7 @@ hardware_interface::return_type HoverboardJoints::write(
   // RCLCPP_INFO(rclcpp::get_logger("HoverboardJoints"), "Joints successfully written!");
 
   return hardware_interface::return_type::OK;
-  }
+}
 
 
 /*
